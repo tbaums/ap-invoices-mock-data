@@ -83,10 +83,12 @@ def _salvage(result) -> Invoice | None:
 
     if not isinstance(data, dict):
         return None
-    # Peel one envelope layer if the real fields are nested inside it.
+    # Peel one envelope layer if the real fields are nested inside it. The
+    # wrapper key is not stable across runs (seen: "input", "mode"), so match
+    # on the shape — any nested dict that looks like an invoice — rather than
+    # on a list of key names we'd have to keep guessing at.
     if "vendor_name" not in data:
-        for key in ("input", "invoice", "output", "result"):
-            nested = data.get(key)
+        for nested in data.values():
             if isinstance(nested, dict) and "vendor_name" in nested:
                 data = nested
                 break
