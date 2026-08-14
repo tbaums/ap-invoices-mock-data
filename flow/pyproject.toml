@@ -1,0 +1,21 @@
+[project]
+name = "ap-invoice-flow"
+version = "0.1.0"
+description = "CrewAI flow that reviews invoices in a GitHub repo and reports duplicate submissions"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    # The [anthropic] extra pulls in the native provider CrewAI uses for
+    # `anthropic/...` model ids. Without it, LLM calls fail at run time.
+    "crewai[anthropic]>=1.15,<2",
+    "requests>=2.31",
+]
+
+[project.scripts]
+ap-invoice-flow = "ap_invoice_flow.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ap_invoice_flow"]
