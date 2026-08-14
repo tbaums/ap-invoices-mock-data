@@ -119,6 +119,13 @@ def fetch_markdown_documents(ref: RepoRef, path_filter: str = "") -> list[Docume
         path = node["path"]
         if not path.lower().endswith(".md"):
             continue
+        # Markdown sitting at the repo root is documentation (README, FLOW,
+        # CONTRIBUTING, ...), not an invoice. Invoices live in a folder. This
+        # is why a bare run doesn't need a path filter to behave sensibly; pass
+        # `path_filter` explicitly for a repo that really does keep invoices at
+        # the top level.
+        if "/" not in path:
+            continue
         if path.rsplit("/", 1)[-1].lower() in SKIP_BASENAMES:
             continue
         if wanted and wanted not in path:
