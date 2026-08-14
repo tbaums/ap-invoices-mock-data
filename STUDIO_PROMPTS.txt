@@ -1,0 +1,119 @@
+CrewAI AMP Studio — live build prompts
+Duplicate invoice review over a GitHub repo of AP invoices
+
+HOW TO USE
+  Start with PROMPT 1. It is short and conversational — the way someone would
+  actually describe the problem out loud — and it leaves Studio room to make
+  its own choices, which is the more interesting thing to watch.
+  If it wanders, drops to PROMPT 2. That one is a full spec: longer, duller,
+  and much harder to misread.
+  Both point at the invoices/ folder of this repository.
+
+  Note: the expected answer is deliberately NOT in this file. The repo URL goes
+  on screen during the demo, and an answer key sitting next to the prompts would
+  spoil the reveal for anyone who opens it.
+
+
+===============================================================================
+PROMPT 1 — START HERE (conversational)
+===============================================================================
+
+Our AP inbox gets invoices from every vendor as separate files, and every so
+often the same invoice comes in twice — a vendor re-sends it, someone saves it
+under a new filename, and it quietly gets paid a second time.
+
+Here's a batch of them: https://github.com/tbaums/ap-invoices-mock-data
+
+Read the invoices in the invoices/ folder and tell me whether any of them are
+duplicates of each other. The same invoice number from the same vendor is the
+obvious case, but also flag it if the same vendor bills the same amount twice
+under a different number. For anything you flag, show me which file duplicates
+which, and total up how much we'd pay twice if all of it went through.
+
+
+===============================================================================
+PROMPT 2 — FALLBACK (precise spec)
+===============================================================================
+
+Build a flow that reviews accounts-payable invoices in a GitHub repository and
+reports duplicate submissions.
+
+INPUT: a public GitHub repository URL.
+Default: https://github.com/tbaums/ap-invoices-mock-data
+
+STEP 1 — Read
+Read every markdown file in the invoices/ folder of that repo. Ignore README
+and any other repo documentation.
+
+STEP 2 — Extract
+From each document, pull these fields exactly as written. Copy values verbatim;
+never infer, correct, or fill in anything the document doesn't state:
+vendor name, invoice number, invoice date, date received by AP, purchase order,
+payment terms, due date, line items (description, quantity, unit price, amount),
+subtotal, tax, total.
+Dates as YYYY-MM-DD. Amounts as plain numbers, no currency symbols.
+
+STEP 3 — Detect duplicates
+Compare every invoice against every other one. Flag a duplicate when:
+  a) same vendor AND same invoice number  -> duplicate, high confidence
+  b) same vendor AND same total AND same invoice date, but a different invoice
+     number  -> duplicate, high confidence
+  c) same vendor AND same total, invoice dates within 60 days, different
+     invoice number  -> possible duplicate, medium confidence
+Normalize vendor names before comparing (ignore case, punctuation, and suffixes
+like Inc / LLC / Ltd). Whichever invoice AP received earliest is the original;
+later arrivals are the duplicates. Do NOT flag a vendor's recurring monthly
+charges that bill different amounts.
+
+STEP 4 — Report
+Output, in this order:
+  1. One sentence: how many duplicates, and the total dollars at risk.
+  2. A markdown table: duplicate file, original file, vendor, invoice number,
+     amount, and which rule matched.
+  3. Two sentences on what AP should do next.
+
+Report only what the invoices support. Do not invent duplicates, and do not
+drop any you find.
+
+
+===============================================================================
+NUDGES — if PROMPT 1 drifts, type one of these before falling back
+===============================================================================
+
+  Only read the files in the invoices/ folder — skip the README and the rest
+  of the repo.
+
+  Treat whichever invoice AP received first as the original, and the later one
+  as the duplicate.
+
+  For each duplicate, show me the filename of both the duplicate and the
+  original, not just the invoice number.
+
+  Don't flag a vendor's recurring monthly charges just because they're from the
+  same vendor — the amounts are different.
+
+
+===============================================================================
+FOLLOW-UPS — to show live iteration, one at a time
+===============================================================================
+
+  Change the near-duplicate window from 60 days to 30 days.
+
+  Add a separate check that flags any invoice over $40,000 for manager
+  approval, listed apart from the duplicates.
+
+  Also return the duplicates as JSON, one object per duplicate.
+
+
+===============================================================================
+TALKING POINT
+===============================================================================
+
+  If Studio hands the duplicate decision to the model, run it twice — the
+  findings can shift between runs. That is the bridge to the code version in
+  this repo: there, agents only read each document into structured fields, and
+  the matching rules are plain Python, so the verdict is identical every time.
+  An auditor needs the same answer twice; that is a real procurement
+  requirement, not a design preference.
+
+  See FLOW.md for the code version and the deployed endpoint.
