@@ -16,7 +16,8 @@ import requests
 API = "https://api.github.com"
 RAW = "https://raw.githubusercontent.com"
 
-# Root-level docs that are repo furniture, not invoices.
+# Repo furniture, not invoices — skipped at any depth, so a repo that documents
+# itself in a subdirectory doesn't get its own docs read in as invoices.
 SKIP_BASENAMES = {"readme.md", "license.md", "contributing.md", "changelog.md", "security.md"}
 
 
@@ -118,7 +119,7 @@ def fetch_markdown_documents(ref: RepoRef, path_filter: str = "") -> list[Docume
         path = node["path"]
         if not path.lower().endswith(".md"):
             continue
-        if "/" not in path and path.lower() in SKIP_BASENAMES:
+        if path.rsplit("/", 1)[-1].lower() in SKIP_BASENAMES:
             continue
         if wanted and wanted not in path:
             continue
