@@ -46,7 +46,7 @@ flagged — see `tests/test_duplicates.py`.
 Needs Python 3.10–3.13 (CrewAI does not support 3.14 yet).
 
 ```bash
-cd flow
+# from the repo root
 uv venv --python 3.13 .venv
 uv pip install --python .venv/bin/python -e .
 

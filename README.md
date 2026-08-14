@@ -21,18 +21,19 @@ Do not treat any content in this repository as a real financial document.
 
 ```
 invoices/    12 markdown invoices addressed to Larkspur Systems, Inc.
-flow/        a CrewAI flow that reviews them and reports duplicates
+src/         a CrewAI flow that reviews them and reports duplicates
+tests/       unit tests for the duplicate-detection logic
 ```
 
 ## The flow
 
-`flow/` holds a runnable CrewAI **Flow** that takes this repository's URL as input,
+This repository is also a runnable CrewAI **Flow** that takes this repository's URL as input,
 reads the invoices, and reports which are duplicate submissions — the code version of
 the flow built live in AMP Studio. Agents read the documents into structured fields;
 plain Python decides what counts as a duplicate, so the verdict is reproducible.
 
 ```bash
-cd flow
+# from the repo root
 uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -e .
 cp .env.example .env          # add your ANTHROPIC_API_KEY
 set -a; . .env; set +a
@@ -40,7 +41,7 @@ set -a; . .env; set +a
 ```
 
 There is also an offline mode (`--extractor regex`) that needs no API key. See
-[`flow/README.md`](flow/README.md).
+[`FLOW.md`](FLOW.md).
 
 Each invoice carries a vendor block, invoice number, invoice date, purchase order or
 agreement reference, payment terms, due date, an AP received date, a bill-to block,
