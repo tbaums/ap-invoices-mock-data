@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
+import time
 
 from crewai import LLM, Agent, Crew, Process, Task
+from pydantic import ValidationError
 
 from .models import Invoice
 
@@ -54,21 +58,73 @@ def _extraction_task(agent: Agent, path: str, text: str) -> Task:
     )
 
 
+EXTRACTION_ATTEMPTS = 3
+
+
+def _salvage(result) -> Invoice | None:
+    """Recover an Invoice when CrewAI could not bind the structured output itself.
+
+    The model occasionally returns its fields wrapped in an extra envelope
+    (`{"input": {...}}`), which fails validation against Invoice. The data is
+    right there — unwrap it rather than losing the document.
+    """
+    if getattr(result, "pydantic", None) is not None:
+        return result.pydantic
+
+    data = getattr(result, "json_dict", None)
+    if not isinstance(data, dict):
+        raw = str(getattr(result, "raw", "") or "").strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?|\n?```$", "", raw).strip()
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+
+    if not isinstance(data, dict):
+        return None
+    # Peel one envelope layer if the real fields are nested inside it.
+    if "vendor_name" not in data:
+        for key in ("input", "invoice", "output", "result"):
+            nested = data.get(key)
+            if isinstance(nested, dict) and "vendor_name" in nested:
+                data = nested
+                break
+
+    try:
+        return Invoice.model_validate(data)
+    except ValidationError:
+        return None
+
+
 def extract_invoice(path: str, text: str, llm: LLM) -> Invoice:
-    """Run a one-agent crew over a single document and return the structured invoice."""
-    agent = _extraction_agent(llm)
-    crew = Crew(
-        agents=[agent],
-        tasks=[_extraction_task(agent, path, text)],
-        process=Process.sequential,
-        verbose=False,
-    )
-    result = crew.kickoff()
-    invoice = result.pydantic
-    if invoice is None:
-        raise ValueError(f"No structured output returned for {path}")
-    invoice.source_file = path  # the path is ours, not the model's, to decide
-    return invoice
+    """Run a one-agent crew over a single document and return the structured invoice.
+
+    Retried, because a dropped document silently understates the duplicate count.
+    """
+    last_error: Exception | None = None
+
+    for attempt in range(1, EXTRACTION_ATTEMPTS + 1):
+        try:
+            agent = _extraction_agent(llm)
+            crew = Crew(
+                agents=[agent],
+                tasks=[_extraction_task(agent, path, text)],
+                process=Process.sequential,
+                verbose=False,
+            )
+            invoice = _salvage(crew.kickoff())
+            if invoice is not None:
+                invoice.source_file = path  # the path is ours, not the model's, to decide
+                return invoice
+            last_error = ValueError("no structured output returned")
+        except Exception as error:  # noqa: BLE001 - retried below, re-raised if it persists
+            last_error = error
+
+        if attempt < EXTRACTION_ATTEMPTS:
+            time.sleep(1.5 * attempt)
+
+    raise RuntimeError(f"{EXTRACTION_ATTEMPTS} attempts failed: {last_error}")
 
 
 def _reporting_agent(llm: LLM) -> Agent:
